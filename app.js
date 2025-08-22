@@ -52,13 +52,38 @@ app.get("/api/v1/blogs/:id", async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+//edit blog
+app.put("/api/v1/blogs/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log("BODY RECEIVED:", req.body); // 👈 ADD THIS
+
+    const { title, author, content, tags } = req.body;
+
+    const updatedBlog = await Blog.findByIdAndUpdate(
+      id,
+      { title, author, content, tags },
+      { new: true }
+    );
+
+    if (!updatedBlog) {
+      return res.status(404).json({ message: "Blog not found" });
+    }
+
+    res.json(updatedBlog);
+  } catch (error) {
+    console.error("UPDATE ERROR:", error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
 //delete blog
 app.delete("/api/v1/blogs/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const blog = await Blog.findByIdAndDelete(id);
     if (!blog) {
-      return res.status(404).json({ message: `Blog not found` });
+      return res.status(404).json({ message: `Blog not Found!!` });
     }
     res.json({ message: "Blog deleted successfully!" });
   } catch (error) {
