@@ -1,107 +1,193 @@
 const express = require("express");
 require("dotenv").config();
 const cors = require("cors");
+const mongoose = require("mongoose");
 const connectDB = require("./db/connect");
-const Blog = require("./models/Blog");
+const Quote = require("./models/Quote");
 
 const app = express();
 
+// Middleware
 app.use(cors());
 app.use(express.json());
 
+// Root Route
 app.get("/", (req, res) => {
-  res.status(200).json({ msg: "Blog App API" });
+  res.status(200).json({ message: "Welcome to QuoteVault API" });
 });
-//get all blogs
-app.get("/api/v1/blogs", async (req, res) => {
+
+// GET ALL QUOTES (no passwords exposed)
+app.get("/api/v1/quotes", async (req, res) => {
   try {
-    const blogs = await Blog.find().sort({ createdAt: -1 });
-    res.status(200).json(blogs);
+    const quotes = await Quote.find().sort({ createdAt: -1 });
+    const sanitized = quotes.map((quote) => {
+      const q = quote.toObject();
+      delete q.password;
+      return q;
+    });
+    res.status(200).json(sanitized);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
-//create new blog
-app.post("/api/v1/blogs", async (req, res) => {
+
+// CREATE NEW QUOTE
+app.post("/api/v1/quotes", async (req, res) => {
   try {
-    const { title, content, author, tags } = req.body;
-    //create a blog
-    const newBlog = new Blog({
-      title: title,
-      content: content,
+    const { title, content, author, tags, password } = req.body;
+
+    const newQuote = new Quote({
+      title,
+      content,
       author: author || "Anonymous",
       tags: tags || [],
+      password: password?.trim() || undefined,
     });
-    //save the blog in database
-    const savedBlog = await newBlog.save();
-    res.status(201).json(savedBlog);
+
+    const savedQuote = await newQuote.save();
+    const quoteToReturn = savedQuote.toObject();
+    delete quoteToReturn.password;
+
+    res.status(201).json(quoteToReturn);
   } catch (error) {
-    res.status(400).json({ msg: error.message });
-  }
-});
-//get single blog
-app.get("/api/v1/blogs/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const blog = await Blog.findById(id);
-    if (!blog) {
-      return res.status(404).json({ message: `Blog not found` });
-    }
-    res.json(blog);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-//edit blog
-app.put("/api/v1/blogs/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    console.log("BODY RECEIVED:", req.body); // 👈 ADD THIS
-
-    const { title, author, content, tags } = req.body;
-
-    const updatedBlog = await Blog.findByIdAndUpdate(
-      id,
-      { title, author, content, tags },
-      { new: true }
-    );
-
-    if (!updatedBlog) {
-      return res.status(404).json({ message: "Blog not found" });
-    }
-
-    res.json(updatedBlog);
-  } catch (error) {
-    console.error("UPDATE ERROR:", error);
-    res.status(500).json({ message: error.message });
+    res.status(400).json({ message: error.message });
   }
 });
 
-//delete blog
-app.delete("/api/v1/blogs/:id", async (req, res) => {
+// GET SINGLE QUOTE
+app.get("/api/v1/quotes/:id", async (req, res) => {
   try {
-    const { id } = req.params;
-    const blog = await Blog.findByIdAndDelete(id);
-    if (!blog) {
-      return res.status(404).json({ message: `Blog not Found!!` });
+    const id = req.params.id.trim().replace(/\\/g, "");
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid quote ID" });
     }
-    res.json({ message: "Blog deleted successfully!" });
+
+    const { password, includePassword } = req.query;
+    const masterPassword = process.env.MASTER_PASSWORD;
+
+    console.log("🚨 MASTER_PASSWORD:", masterPassword);
+    console.log("🧪 Incoming password from query:", password);
+
+    const quote = await Quote.findById(id);
+
+    if (!quote) {
+      return res.status(404).json({ message: "Quote not found" });
+    }
+
+    const quoteData = quote.toObject();
+
+    // Return full quote including password if requested explicitly
+    if (includePassword === "true") {
+      return res.status(200).json(quoteData);
+    }
+
+    // Password validation logic
+    const isPasswordValid =
+      password === masterPassword ||
+      (!quote.password && !password) ||
+      quote.password === password;
+
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: "Incorrect password" });
+    }
+
+    delete quoteData.password;
+    res.status(200).json(quoteData);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-const PORT = process.env.PORT;
+// UPDATE QUOTE
+app.put("/api/v1/quotes/:id", async (req, res) => {
+  try {
+    const id = req.params.id.trim().replace(/\\/g, "");
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid quote ID" });
+    }
 
-const start = async function () {
+    const { title, content, author, tags, password, newPassword } = req.body;
+    const masterPassword = process.env.MASTER_PASSWORD;
+    const quote = await Quote.findById(id);
+
+    if (!quote) {
+      return res.status(404).json({ message: "Quote not found" });
+    }
+
+    const isPasswordValid =
+      password === masterPassword ||
+      (!quote.password && !password) ||
+      quote.password === password;
+
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: "Incorrect password" });
+    }
+
+    quote.title = title;
+    quote.content = content;
+    quote.author = author;
+    quote.tags = tags;
+
+    if (typeof newPassword !== "undefined") {
+      const cleanNewPwd = newPassword.trim();
+      quote.password = cleanNewPwd !== "" ? cleanNewPwd : undefined;
+    }
+
+    const updatedQuote = await quote.save();
+    const quoteToReturn = updatedQuote.toObject();
+    delete quoteToReturn.password;
+
+    res.status(200).json(quoteToReturn);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// DELETE QUOTE
+app.delete("/api/v1/quotes/:id", async (req, res) => {
+  try {
+    const id = req.params.id.trim().replace(/\\/g, "");
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid quote ID" });
+    }
+
+    const password = req.query.password || req.body.password;
+    const masterPassword = process.env.MASTER_PASSWORD;
+    const quote = await Quote.findById(id);
+
+    if (!quote) {
+      return res.status(404).json({ message: "Quote not found" });
+    }
+
+    const isPasswordValid =
+      password === masterPassword ||
+      (!quote.password && !password) ||
+      quote.password === password;
+
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: "Incorrect password" });
+    }
+
+    await quote.deleteOne();
+    res.status(200).json({ message: "Quote deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Start Server
+const PORT = process.env.PORT || 8080;
+
+const start = async () => {
   try {
     await connectDB();
-    console.log("Connected to DATABASE");
+    console.log("✅ Connected to DATABASE");
     app.listen(PORT, () => {
-      console.log(`Server is Listening on PORT ${PORT}...`);
+      console.log(`🚀 Server running at http://localhost:${PORT}`);
     });
   } catch (error) {
-    console.log(error);
+    console.error("❌ Failed to connect to database:", error);
   }
 };
+
 start();
