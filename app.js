@@ -55,7 +55,7 @@ app.post("/api/v1/quotes", async (req, res) => {
 });
 
 // GET SINGLE QUOTE
-app.get("$/api/v1/quotes/:id", async (req, res) => {
+app.get("/api/v1/quotes/:id", async (req, res) => {
   try {
     const id = req.params.id.trim().replace(/\\/g, "");
     if (!mongoose.Types.ObjectId.isValid(id)) {
