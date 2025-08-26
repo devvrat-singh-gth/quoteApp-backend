@@ -4,6 +4,7 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 const connectDB = require("./db/connect");
 const Quote = require("./models/Quote");
+const BASE_URL = "http://localhost:8080";
 
 const app = express();
 
@@ -17,7 +18,7 @@ app.get("/", (req, res) => {
 });
 
 // GET ALL QUOTES (no passwords exposed)
-app.get("/api/v1/quotes", async (req, res) => {
+app.get("${BASE_URL}/api/v1/quotes", async (req, res) => {
   try {
     const quotes = await Quote.find().sort({ createdAt: -1 });
     const sanitized = quotes.map((quote) => {
@@ -32,7 +33,7 @@ app.get("/api/v1/quotes", async (req, res) => {
 });
 
 // CREATE NEW QUOTE
-app.post("/api/v1/quotes", async (req, res) => {
+app.post("${BASE_URL}/api/v1/quotes", async (req, res) => {
   try {
     const { title, content, author, tags, password } = req.body;
 
@@ -55,7 +56,7 @@ app.post("/api/v1/quotes", async (req, res) => {
 });
 
 // GET SINGLE QUOTE
-app.get("/api/v1/quotes/:id", async (req, res) => {
+app.get("${BASE_URL}/api/v1/quotes/:id", async (req, res) => {
   try {
     const id = req.params.id.trim().replace(/\\/g, "");
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -99,7 +100,7 @@ app.get("/api/v1/quotes/:id", async (req, res) => {
 });
 
 // UPDATE QUOTE
-app.put("/api/v1/quotes/:id", async (req, res) => {
+app.put("${BASE_URL}/api/v1/quotes/:id", async (req, res) => {
   try {
     const id = req.params.id.trim().replace(/\\/g, "");
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -144,7 +145,7 @@ app.put("/api/v1/quotes/:id", async (req, res) => {
 });
 
 // DELETE QUOTE
-app.delete("/api/v1/quotes/:id", async (req, res) => {
+app.delete("${BASE_URL}/api/v1/quotes/:id", async (req, res) => {
   try {
     const id = req.params.id.trim().replace(/\\/g, "");
     if (!mongoose.Types.ObjectId.isValid(id)) {
