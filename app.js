@@ -151,12 +151,20 @@ app.delete("/api/v1/quotes/:id", async (req, res) => {
       return res.status(400).json({ message: "Invalid quote ID" });
     }
 
-    const password = req.query.password || req.body.password;
+    // Support password from query or request body, default to empty string
+    const password = req.query?.password ?? req.body?.password ?? "";
     const masterPassword = process.env.MASTER_PASSWORD;
+
     const quote = await Quote.findById(id);
+
+    console.log("Deleting quote:", quote);
 
     if (!quote) {
       return res.status(404).json({ message: "Quote not found" });
+    }
+
+    if (typeof quote.password === "undefined") {
+      console.warn("Quote password field is undefined for quote ID:", id);
     }
 
     const isPasswordValid =
@@ -171,6 +179,7 @@ app.delete("/api/v1/quotes/:id", async (req, res) => {
     await quote.deleteOne();
     res.status(200).json({ message: "Quote deleted successfully" });
   } catch (error) {
+    console.error("Delete quote error:", error);
     res.status(500).json({ message: error.message });
   }
 });
